@@ -59,8 +59,12 @@ class cert:
         self.subject = cert.subject.rfc4514_string({x509.NameOID.EMAIL_ADDRESS: "E"})
         self.not_before = cert.not_valid_before_utc.replace(microsecond=0)
         self.not_after = cert.not_valid_after_utc.replace(microsecond=0)
-        san_data = cert.extensions.get_extension_for_class(x509.SubjectAlternativeName)
-        self.san_names = san_data.value.get_values_for_type(x509.GeneralName)
+        try:
+            san_data = cert.extensions.get_extension_for_class(x509.SubjectAlternativeName)
+            self.san_names = san_data.value.get_values_for_type(x509.GeneralName)
+        except x509.extensions.ExtensionNotFound:
+            self.san_names = []
+
         self.provisioner = cert_data.get("provisioner", None)
 
         if cert_revoked is not None:
