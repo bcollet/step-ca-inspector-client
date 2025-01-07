@@ -42,7 +42,7 @@ def list_ssh_certs(sort_key, revoked=False, expired=False):
 
 
 def get_ssh_cert(serial):
-    cert = ssh_cert.cert(serial)
+    cert = ssh_cert.cert.from_serial(serial)
     cert_tbl = []
 
     cert_tbl.append(["Serial", cert.serial])
@@ -68,7 +68,7 @@ def get_ssh_cert(serial):
 
 
 def dump_ssh_cert(serial):
-    cert = ssh_cert.cert(serial)
+    cert = ssh_cert.cert.from_serial(serial)
     print(cert.public_identity.decode())
 
 
@@ -105,7 +105,7 @@ def list_x509_certs(sort_key, revoked=False, expired=False):
 
 
 def get_x509_cert(serial, show_pem=False):
-    cert = x509_cert.cert(serial)
+    cert = x509_cert.cert.from_serial(serial)
     cert_tbl = []
 
     cert_tbl.append(["Serial", cert.serial])
@@ -135,7 +135,7 @@ def get_x509_cert(serial, show_pem=False):
 
 
 def dump_x509_cert(serial, cert_format="pem"):
-    cert = x509_cert.cert(serial)
+    cert = x509_cert.cert.from_serial(serial)
     print(cert.pem.decode("utf-8").rstrip())
 
 

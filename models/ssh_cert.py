@@ -23,10 +23,15 @@ class list:
 
     def __new__(cls, sort_key=None):
         cur = conn.cursor()
-        cur.execute("SELECT nkey FROM ssh_certs")
+        cur.execute(
+            """SELECT ssh_certs.nvalue AS cert,
+                      revoked_ssh_certs.nvalue AS revoked
+               FROM ssh_certs
+               LEFT JOIN revoked_ssh_certs USING(nkey)"""
+        )
 
-        for (cert_serial,) in cur:
-            cert_object = cert(cert_serial)
+        for result in cur:
+            cert_object = cert(result)
             cls.certs.append(cert_object)
 
         cur.close()
@@ -38,14 +43,24 @@ class list:
 
 
 class cert:
-    def __init__(self, serial):
-        cert_raw = self.get_cert(serial)
+    def __init__(self, cert):
+        (cert_raw, cert_revoked_raw) = cert
+
         size = unpack(">I", cert_raw[:4])[0] + 4
         alg = cert_raw[4:size]
 
         cert_pub_id = b" ".join([alg, base64.b64encode(cert_raw)])
-        cert_revoked = self.get_cert_revoked(serial)
+
+        if cert_revoked_raw is not None:
+            cert_revoked = json.loads(cert_revoked_raw)
+        else:
+            cert_revoked = None
+
         self.load(cert_pub_id, cert_revoked, alg)
+
+    @classmethod
+    def from_serial(cls, serial):
+        return cls(cert=cls.get_cert(cls, serial))
 
     def load(self, cert_pub_id, cert_revoked, cert_alg):
         cert = serialization.load_ssh_public_identity(cert_pub_id)
@@ -95,26 +110,21 @@ class cert:
 
     def get_cert(self, cert_serial):
         cur = conn.cursor()
-        cur.execute("SELECT nvalue FROM ssh_certs WHERE nkey=?", (cert_serial,))
+        cur.execute(
+            """SELECT ssh_certs.nvalue AS cert,
+                      revoked_ssh_certs.nvalue AS revoked
+               FROM ssh_certs
+               LEFT JOIN revoked_ssh_certs USING(nkey)
+               WHERE nkey=?""",
+            (cert_serial,),
+        )
         if cur.rowcount > 0:
-            (cert,) = cur.fetchone()
+            cert = cur.fetchone()
         else:
             cert = None
 
         cur.close()
         return cert
-
-    def get_cert_revoked(self, cert_serial):
-        cur = conn.cursor()
-        cur.execute("SELECT nvalue FROM revoked_ssh_certs WHERE nkey=?", (cert_serial,))
-        if cur.rowcount > 0:
-            (cert_revoked_raw,) = cur.fetchone()
-            cert_revoked = json.loads(cert_revoked_raw)
-        else:
-            cert_revoked = None
-
-        cur.close()
-        return cert_revoked
 
     def get_public_key_params(self, public_key):
         if isinstance(public_key, asymmetric.ec.EllipticCurvePublicKey):
