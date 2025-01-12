@@ -104,7 +104,7 @@ def list_x509_certs(sort_key, revoked=False, expired=False):
     print(tabulate(cert_tbl, headers="keys", tablefmt="fancy_grid"))
 
 
-def get_x509_cert(serial, show_pem=False):
+def get_x509_cert(serial, show_cert=False, show_pubkey=False):
     cert = x509_cert.cert.from_serial(serial)
     cert_tbl = []
 
@@ -128,7 +128,9 @@ def get_x509_cert(serial, show_pem=False):
     cert_tbl.append(["Signature algorithm", cert.sig_alg])
     cert_tbl.append(["Status", cert.status])
     # cert_tbl.append(["Extensions", cert.extensions])
-    if show_pem:
+    if show_pubkey:
+        cert_tbl.append(["Public key", cert.pub_key.decode("utf-8")])
+    if show_cert:
         cert_tbl.append(["PEM", cert.pem.decode("utf-8")])
 
     print(tabulate(cert_tbl, tablefmt="fancy_grid"))
@@ -177,11 +179,18 @@ x509_details_parser.add_argument(
     "--serial", "-s", type=str, required=True, help="Certificate serial"
 )
 x509_details_parser.add_argument(
-    "--show-pem",
+    "--show-cert",
+    "-c",
+    action="store_true",
+    default=False,
+    help="Show certificate (PEM)",
+)
+x509_details_parser.add_argument(
+    "--show-pubkey",
     "-p",
     action="store_true",
     default=False,
-    help="Show PEM",
+    help="Show public key (PEM)",
 )
 x509_dump_parser = x509_subparsers.add_parser("dump", help="Dump an x509 certificate")
 x509_dump_parser.add_argument(
@@ -240,7 +249,7 @@ if args.object == "x509":
             revoked=args.show_revoked, expired=args.show_expired, sort_key=args.sort_by
         )
     elif args.action == "details":
-        get_x509_cert(serial=args.serial, show_pem=args.show_pem)
+        get_x509_cert(serial=args.serial, show_cert=args.show_cert, show_pubkey=args.show_pubkey)
     elif args.action == "dump":
         dump_x509_cert(serial=args.serial)
 elif args.object == "ssh":

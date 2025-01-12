@@ -67,6 +67,9 @@ class cert:
         self.sha256 = binascii.b2a_hex(cert.fingerprint(hashes.SHA256()))
         self.sha1 = binascii.b2a_hex(cert.fingerprint(hashes.SHA1()))
         self.md5 = binascii.b2a_hex(cert.fingerprint(hashes.MD5()))
+        self.pub_key = cert.public_key().public_bytes(
+            serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo
+        )
         self.pub_alg = cert.public_key_algorithm_oid._name
         self.sig_alg = cert.signature_algorithm_oid._name
         self.issuer = cert.issuer.rfc4514_string()
