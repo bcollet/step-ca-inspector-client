@@ -32,6 +32,9 @@ def list_ssh_certs(sort_key, revoked=False, expired=False):
         validity.append(f"Not after:  {cert.not_after}")
         if cert.revoked_at is not None:
             validity.append(f"Revoked at: {cert.revoked_at}")
+            validity.append(f"Valid for: {cert.revoked_at - cert.not_before}")
+        else:
+            validity.append(f"Valid for: {cert.not_after - cert.not_before}")
 
         cert_row["Validity"] = "\n".join(validity)
         cert_row["Status"] = cert.status
@@ -59,6 +62,9 @@ def get_ssh_cert(serial):
     cert_tbl.append(["Not valid after", cert.not_after])
     if cert.revoked_at is not None:
         cert_tbl.append(["Revoked at", cert.revoked_at])
+        cert_tbl.append(["Valid for", cert.revoked_at - cert.not_before])
+    else:
+        cert_tbl.append(["Valid for", cert.not_after - cert.not_before])
     extensions = [x.decode() for x in cert.extensions]
     cert_tbl.append(["Extensions", "\n".join(extensions)])
     # cert_tbl.append(["Signing key", cert.signing_key.decode()])
@@ -95,6 +101,9 @@ def list_x509_certs(sort_key, revoked=False, expired=False):
         validity.append(f"Not after:  {cert.not_after}")
         if cert.revoked_at is not None:
             validity.append(f"Revoked at: {cert.revoked_at}")
+            validity.append(f"Valid for: {cert.revoked_at - cert.not_before}")
+        else:
+            validity.append(f"Valid for: {cert.not_after - cert.not_before}")
 
         cert_row["Validity"] = "\n".join(validity)
         cert_row["Status"] = cert.status
@@ -116,6 +125,9 @@ def get_x509_cert(serial, show_cert=False, show_pubkey=False):
     cert_tbl.append(["Not valid after", cert.not_after])
     if cert.revoked_at is not None:
         cert_tbl.append(["Revoked at", cert.revoked_at])
+        cert_tbl.append(["Valid for", cert.revoked_at - cert.not_before])
+    else:
+        cert_tbl.append(["Valid for", cert.not_after - cert.not_before])
     cert_tbl.append(
         ["Provisioner", f"{cert.provisioner['name']} ({cert.provisioner['type']})"]
     )
