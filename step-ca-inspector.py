@@ -4,8 +4,24 @@ import argparse
 import os
 import sys
 import yaml
+from datetime import datetime, timedelta, timezone
 from tabulate import tabulate
 from models import ssh_cert, x509_cert
+
+
+def delta_text(delta):
+    if delta < timedelta(days=-2):
+        return f"in {abs(delta.days)} days"
+    elif delta < timedelta(days=-1):
+        return f"in {abs(delta.days)} day"
+    elif delta < timedelta(days=0):
+        return "in less than a day"
+    elif delta < timedelta(days=1):
+        return "less than a day ago"
+    elif delta < timedelta(days=2):
+        return f"{delta.days} day ago"
+    else:
+        return f"{delta.days} days ago"
 
 
 def list_ssh_certs(sort_key, revoked=False, expired=False):
@@ -27,16 +43,16 @@ def list_ssh_certs(sort_key, revoked=False, expired=False):
             principals = principals_list[:2] + [f"+{principals_count - 2} more"]
         cert_row["Principals"] = "\n".join(principals)
 
-        validity = []
-        validity.append(f"Not before: {cert.not_before}")
-        validity.append(f"Not after:  {cert.not_after}")
-        if cert.revoked_at is not None:
-            validity.append(f"Revoked at: {cert.revoked_at}")
-            validity.append(f"Valid for: {cert.revoked_at - cert.not_before}")
-        else:
-            validity.append(f"Valid for: {cert.not_after - cert.not_before}")
+        now_with_tz = datetime.utcnow().replace(
+            tzinfo=timezone(offset=timedelta()), microsecond=0
+        )
 
-        cert_row["Validity"] = "\n".join(validity)
+        if cert.revoked_at is not None:
+            delta = now_with_tz - cert.revoked_at
+        else:
+            delta = now_with_tz - cert.not_after
+
+        cert_row["Expires"] = delta_text(delta).capitalize()
         cert_row["Status"] = cert.status
 
         cert_tbl.append(cert_row)
@@ -58,13 +74,28 @@ def get_ssh_cert(serial):
     cert_tbl.append(["Key ID", cert.key_id.decode()])
     principals = [x.decode() for x in cert.principals]
     cert_tbl.append(["Principals", "\n".join(principals)])
-    cert_tbl.append(["Not valid before", cert.not_before])
-    cert_tbl.append(["Not valid after", cert.not_after])
+
+    now_with_tz = datetime.utcnow().replace(
+        tzinfo=timezone(offset=timedelta()), microsecond=0
+    )
+
+    delta_after = now_with_tz - cert.not_after
+    delta_before = now_with_tz - cert.not_before
+
+    cert_tbl.append(
+        ["Not valid before", f"{cert.not_before} ({delta_text(delta_before)})"]
+    )
+    cert_tbl.append(
+        ["Not valid after", f"{cert.not_after} ({delta_text(delta_after)})"]
+    )
     if cert.revoked_at is not None:
-        cert_tbl.append(["Revoked at", cert.revoked_at])
-        cert_tbl.append(["Valid for", cert.revoked_at - cert.not_before])
+        delta_revoked = now_with_tz - cert.revoked_at
+        cert_tbl.append(
+            ["Revoked at", f"{cert.revoked_at} ({delta_text(delta_revoked)})"]
+        )
+        cert_tbl.append(["Valid for", f"{delta_revoked.days} days"])
     else:
-        cert_tbl.append(["Valid for", cert.not_after - cert.not_before])
+        cert_tbl.append(["Valid for", f"{abs(delta_after.days)} days"])
     extensions = [x.decode() for x in cert.extensions]
     cert_tbl.append(["Extensions", "\n".join(extensions)])
     # cert_tbl.append(["Signing key", cert.signing_key.decode()])
@@ -99,16 +130,17 @@ def list_x509_certs(sort_key, revoked=False, expired=False):
         cert_row["Provisioner"] = (
             f"{cert.provisioner['name']} ({cert.provisioner['type']})"
         )
-        validity = []
-        validity.append(f"Not before: {cert.not_before}")
-        validity.append(f"Not after:  {cert.not_after}")
-        if cert.revoked_at is not None:
-            validity.append(f"Revoked at: {cert.revoked_at}")
-            validity.append(f"Valid for: {cert.revoked_at - cert.not_before}")
-        else:
-            validity.append(f"Valid for: {cert.not_after - cert.not_before}")
 
-        cert_row["Validity"] = "\n".join(validity)
+        now_with_tz = datetime.utcnow().replace(
+            tzinfo=timezone(offset=timedelta()), microsecond=0
+        )
+
+        if cert.revoked_at is not None:
+            delta = now_with_tz - cert.revoked_at
+        else:
+            delta = now_with_tz - cert.not_after
+
+        cert_row["Expires"] = delta_text(delta).capitalize()
         cert_row["Status"] = cert.status
 
         cert_tbl.append(cert_row)
@@ -129,13 +161,29 @@ def get_x509_cert(serial, show_cert=False, show_pubkey=False):
         ]
     )
     cert_tbl.append(["Issuer", cert.issuer])
-    cert_tbl.append(["Not valid before", cert.not_before])
-    cert_tbl.append(["Not valid after", cert.not_after])
+
+    now_with_tz = datetime.utcnow().replace(
+        tzinfo=timezone(offset=timedelta()), microsecond=0
+    )
+
+    delta_after = now_with_tz - cert.not_after
+    delta_before = now_with_tz - cert.not_before
+
+    cert_tbl.append(
+        ["Not valid before", f"{cert.not_before} ({delta_text(delta_before)})"]
+    )
+    cert_tbl.append(
+        ["Not valid after", f"{cert.not_after} ({delta_text(delta_after)})"]
+    )
     if cert.revoked_at is not None:
-        cert_tbl.append(["Revoked at", cert.revoked_at])
-        cert_tbl.append(["Valid for", cert.revoked_at - cert.not_before])
+        delta_revoked = now_with_tz - cert.revoked_at
+        cert_tbl.append(
+            ["Revoked at", f"{cert.revoked_at} ({delta_text(delta_revoked)})"]
+        )
+        cert_tbl.append(["Valid for", f"{delta_revoked.days} days"])
     else:
-        cert_tbl.append(["Valid for", cert.not_after - cert.not_before])
+        cert_tbl.append(["Valid for", f"{abs(delta_after.days)} days"])
+
     cert_tbl.append(
         ["Provisioner", f"{cert.provisioner['name']} ({cert.provisioner['type']})"]
     )
