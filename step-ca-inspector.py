@@ -41,6 +41,8 @@ def list_ssh_certs(sort_key, revoked=False, expired=False):
         principals_list = [x.decode() for x in cert.principals]
         if principals_count > 2:
             principals = principals_list[:2] + [f"+{principals_count - 2} more"]
+        else:
+            principals = principals_list
         cert_row["Principals"] = "\n".join(principals)
 
         now_with_tz = datetime.utcnow().replace(
