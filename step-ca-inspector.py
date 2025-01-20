@@ -10,18 +10,16 @@ from models import ssh_cert, x509_cert
 
 
 def delta_text(delta):
-    if delta < timedelta(days=-2):
-        return f"in {abs(delta.days)} days"
-    elif delta < timedelta(days=-1):
-        return f"in {abs(delta.days)} day"
+    s = 's'[:abs(delta.days)^1]
+
+    if delta < timedelta(days=-1):
+        return f"in {abs(delta.days)} day{s}"
     elif delta < timedelta(days=0):
         return "in less than a day"
     elif delta < timedelta(days=1):
         return "less than a day ago"
-    elif delta < timedelta(days=2):
-        return f"{delta.days} day ago"
     else:
-        return f"{delta.days} days ago"
+        return f"{delta.days} day{s} ago"
 
 
 def list_ssh_certs(sort_key, revoked=False, expired=False):
