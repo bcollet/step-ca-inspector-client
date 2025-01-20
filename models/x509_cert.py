@@ -80,7 +80,7 @@ class cert:
             san_data = cert.extensions.get_extension_for_class(
                 x509.SubjectAlternativeName
             )
-            self.san_names = san_data.value.get_values_for_type(x509.GeneralName)
+            self.san_names = self.get_sans(san_data)
         except x509.extensions.ExtensionNotFound:
             self.san_names = []
 
@@ -124,6 +124,33 @@ class cert:
 
         cur.close()
         return cert
+
+    def get_sans(self, san_data):
+        sans = []
+
+        for san_value in san_data.value:
+            san = {}
+            if isinstance(san_value, x509.general_name.DNSName):
+                san["type"] = "DNS"
+            elif isinstance(san_value, x509.general_name.UniformResourceIdentifier):
+                san["type"] = "URI"
+            elif isinstance(san_value, x509.general_name.RFC822Name):
+                san["type"] = "Email"
+            elif isinstance(san_value, x509.general_name.IPAddress):
+                san["type"] = "IP"
+            elif isinstance(san_value, x509.general_name.DirectoryName):
+                san["type"] = "DirectoryName"
+            elif isinstance(san_value, x509.general_name.RegisteredID):
+                san["type"] = "RegisteredID"
+            elif isinstance(san_value, x509.general_name.OtherName):
+                san["type"] = "Other ({san_value.type_id})"
+            else:
+                continue
+
+            san["value"] = san_value.value
+            sans.append(san)
+
+        return sans
 
 
 class status:

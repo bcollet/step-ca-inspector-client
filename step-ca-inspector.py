@@ -89,9 +89,12 @@ def list_x509_certs(sort_key, revoked=False, expired=False):
 
         cert_row = {}
         cert_row["Serial"] = cert.serial
-        cert_row["Subject"] = "%.30s" % cert.subject
-        cert_row["Subject Alt Names (SAN)"] = "\n".join(
-            ["%.30s" % x for x in cert.san_names]
+        cert_row["Subject/Subject Alt Names (SAN)"] = "\n".join(
+            [
+                "%.33s" % x
+                for x in [cert.subject]
+                + [f"{x['type']}: {x['value']}" for x in cert.san_names]
+            ]
         )
         cert_row["Provisioner"] = (
             f"{cert.provisioner['name']} ({cert.provisioner['type']})"
@@ -119,7 +122,12 @@ def get_x509_cert(serial, show_cert=False, show_pubkey=False):
 
     cert_tbl.append(["Serial", cert.serial])
     cert_tbl.append(["Subject", cert.subject])
-    cert_tbl.append(["Subject Alt Names (SAN)", "\n".join(cert.san_names)])
+    cert_tbl.append(
+        [
+            "Subject Alt Names (SAN)",
+            "\n".join([f"{x['type']}: {x['value']}" for x in cert.san_names]),
+        ]
+    )
     cert_tbl.append(["Issuer", cert.issuer])
     cert_tbl.append(["Not valid before", cert.not_before])
     cert_tbl.append(["Not valid after", cert.not_after])
@@ -261,7 +269,9 @@ if args.object == "x509":
             revoked=args.show_revoked, expired=args.show_expired, sort_key=args.sort_by
         )
     elif args.action == "details":
-        get_x509_cert(serial=args.serial, show_cert=args.show_cert, show_pubkey=args.show_pubkey)
+        get_x509_cert(
+            serial=args.serial, show_cert=args.show_cert, show_pubkey=args.show_pubkey
+        )
     elif args.action == "dump":
         dump_x509_cert(serial=args.serial)
 elif args.object == "ssh":
