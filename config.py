@@ -23,3 +23,9 @@ class config:
 
         for k, v in cfg.items():
             setattr(self, k, v)
+
+        for setting in ["url"]:
+            if not hasattr(self, setting):
+                # FIXME: Raise instead
+                print(f"Mandatory setting {setting} is not configured.")
+                sys.exit(1)

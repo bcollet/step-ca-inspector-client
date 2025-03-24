@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 
 import argparse
-import os
-import sys
-import yaml
+import requests
+from urllib.parse import urljoin
 from datetime import datetime, timedelta, timezone
 from tabulate import tabulate
-from models import ssh_cert, x509_cert
+from config import config
+
+config()
 
 
 def delta_text(delta):
-    s = 's'[:abs(delta.days)^1]
+    s = "s"[: abs(delta.days) ^ 1]
 
     if delta < timedelta(days=-1):
         return f"in {abs(delta.days)} day{s}"
@@ -22,38 +23,53 @@ def delta_text(delta):
         return f"{delta.days} day{s} ago"
 
 
+def fetch_api(endpoint, params={}):
+    try:
+        results = requests.get(urljoin(config.url, endpoint), params=params)
+        results.raise_for_status()
+    except requests.HTTPError as e:
+        raise e
+    except requests.Timeout as e:
+        raise e
+        # request took too long
+
+    return results.json()
+
+
 def list_ssh_certs(sort_key, revoked=False, expired=False):
-    cert_list = ssh_cert.list(sort_key=sort_key)
+    params = {
+        "sort_key": sort_key,
+        "revoked": revoked,
+        "expired": expired,
+    }
+    cert_list = fetch_api("ssh/certs", params=params)
+
     cert_tbl = []
     for cert in cert_list:
-        if cert.status.value == ssh_cert.status.EXPIRED and not expired:
-            continue
-        if cert.status.value == ssh_cert.status.REVOKED and not revoked:
-            continue
-
         cert_row = {}
-        cert_row["Serial"] = cert.serial
-        cert_row["Type"] = cert.type
-        cert_row["Key ID"] = cert.key_id
-        principals_count = len(cert.principals)
-        principals_list = [x.decode() for x in cert.principals]
+        cert_row["Serial"] = cert["serial"]
+        cert_row["Type"] = cert["type"]
+        cert_row["Key ID"] = cert["key_id"]
+        principals_count = len(cert["principals"])
         if principals_count > 2:
-            principals = principals_list[:2] + [f"+{principals_count - 2} more"]
+            principals = cert["principals"][:2] + [f"+{principals_count - 2} more"]
         else:
-            principals = principals_list
+            principals = cert["principals"]
         cert_row["Principals"] = "\n".join(principals)
 
-        now_with_tz = datetime.utcnow().replace(
-            tzinfo=timezone(offset=timedelta()), microsecond=0
-        )
+        now_with_tz = datetime.now(timezone.utc).replace(microsecond=0)
 
-        if cert.revoked_at is not None:
-            delta = now_with_tz - cert.revoked_at
+        if cert["revoked_at"] is not None:
+            delta = now_with_tz - datetime.fromtimestamp(
+                cert["revoked_at"], tz=timezone.utc
+            )
         else:
-            delta = now_with_tz - cert.not_after
+            delta = now_with_tz - datetime.fromtimestamp(
+                cert["not_after"], tz=timezone.utc
+            )
 
         cert_row["Expires"] = delta_text(delta).capitalize()
-        cert_row["Status"] = cert.status
+        cert_row["Status"] = cert["status"]
 
         cert_tbl.append(cert_row)
 
@@ -61,87 +77,104 @@ def list_ssh_certs(sort_key, revoked=False, expired=False):
 
 
 def get_ssh_cert(serial):
-    cert = ssh_cert.cert.from_serial(serial)
+    cert = fetch_api(f"ssh/certs/{serial}")
+    if cert is None:
+        return
+
     cert_tbl = []
-
-    cert_tbl.append(["Serial", cert.serial])
-    cert_tbl.append(["Certificate type", cert.type])
-    cert_tbl.append(["Certificate key type", cert.alg.decode()])
-    public_key = f"{cert.public_key_type} SHA256:{cert.public_key_hash.decode()}"
+    cert_tbl.append(["Serial", cert["serial"]])
+    cert_tbl.append(["Certificate type", cert["type"]])
+    cert_tbl.append(["Certificate key type", cert["alg"]])
+    public_key = f"{cert['public_key_type']} SHA256:{cert['public_key_hash']}"
     cert_tbl.append(["Public key", public_key])
-    signing_key = f"{cert.signing_key_type} SHA256:{cert.signing_key_hash.decode()}"
+    signing_key = f"{cert['signing_key_type']} SHA256:{cert['signing_key_hash']}"
     cert_tbl.append(["Signing key", signing_key])
-    cert_tbl.append(["Key ID", cert.key_id.decode()])
-    principals = [x.decode() for x in cert.principals]
-    cert_tbl.append(["Principals", "\n".join(principals)])
+    cert_tbl.append(["Key ID", cert["key_id"]])
+    cert_tbl.append(["Principals", "\n".join(cert["principals"])])
 
-    now_with_tz = datetime.utcnow().replace(
-        tzinfo=timezone(offset=timedelta()), microsecond=0
+    now_with_tz = datetime.now(timezone.utc).replace(microsecond=0)
+
+    delta_after = now_with_tz - datetime.fromtimestamp(
+        cert["not_after"], tz=timezone.utc
     )
-
-    delta_after = now_with_tz - cert.not_after
-    delta_before = now_with_tz - cert.not_before
+    delta_before = now_with_tz - datetime.fromtimestamp(
+        cert["not_before"], tz=timezone.utc
+    )
 
     cert_tbl.append(
-        ["Not valid before", f"{cert.not_before} ({delta_text(delta_before)})"]
+        [
+            "Not valid before",
+            f"{datetime.fromtimestamp(cert['not_before']).astimezone()} ({delta_text(delta_before)})",
+        ]
     )
     cert_tbl.append(
-        ["Not valid after", f"{cert.not_after} ({delta_text(delta_after)})"]
+        [
+            "Not valid after",
+            f"{datetime.fromtimestamp(cert['not_after']).astimezone()} ({delta_text(delta_after)})",
+        ]
     )
-    if cert.revoked_at is not None:
-        delta_revoked = now_with_tz - cert.revoked_at
-        cert_tbl.append(
-            ["Revoked at", f"{cert.revoked_at} ({delta_text(delta_revoked)})"]
+
+    if cert["revoked_at"] is not None:
+        delta_revoked = now_with_tz - datetime.fromtimestamp(
+            cert["revoked_at"], tz=timezone.utc
         )
-        cert_tbl.append(["Valid for", f"{delta_revoked.days} days"])
-    else:
-        cert_tbl.append(["Valid for", f"{abs(delta_after.days)} days"])
-    extensions = [x.decode() for x in cert.extensions]
-    cert_tbl.append(["Extensions", "\n".join(extensions)])
-    # cert_tbl.append(["Signing key", cert.signing_key.decode()])
-    cert_tbl.append(["Status", cert.status])
+        cert_tbl.append(
+            [
+                "Revoked at",
+                f"{datetime.fromtimestamp(cert['revoked_at']).astimezone()} ({delta_text(delta_revoked)})",
+            ]
+        )
+
+    cert_tbl.append(["Extensions", "\n".join(cert["extensions"])])
+    #cert_tbl.append(["Signing key", cert["signing_key"]])
+    cert_tbl.append(["Status", cert["status"]])
 
     print(tabulate(cert_tbl, tablefmt="fancy_grid"))
 
 
 def dump_ssh_cert(serial):
-    cert = ssh_cert.cert.from_serial(serial)
-    print(cert.public_identity.decode())
+    cert = fetch_api(f"ssh/certs/{serial}")
+    if cert is None:
+        return
+
+    print(cert["public_identity"])
 
 
 def list_x509_certs(sort_key, revoked=False, expired=False):
-    cert_list = x509_cert.list(sort_key=sort_key)
+    params = {
+        "sort_key": sort_key,
+        "revoked": revoked,
+        "expired": expired,
+    }
+    cert_list = fetch_api(f"x509/certs", params=params)
     cert_tbl = []
     for cert in cert_list:
-        if cert.status.value == x509_cert.status.EXPIRED and not expired:
-            continue
-        if cert.status.value == x509_cert.status.REVOKED and not revoked:
-            continue
-
         cert_row = {}
-        cert_row["Serial"] = cert.serial
+        cert_row["Serial"] = cert["serial"]
         cert_row["Subject/Subject Alt Names (SAN)"] = "\n".join(
             [
                 "%.33s" % x
-                for x in [cert.subject]
-                + [f"{x['type']}: {x['value']}" for x in cert.san_names]
+                for x in [cert["subject"]]
+                + [f"{x['type']}: {x['value']}" for x in cert["san_names"]]
             ]
         )
         cert_row["Provisioner"] = (
-            f"{cert.provisioner['name']} ({cert.provisioner['type']})"
+            f"{cert['provisioner']['name']} ({cert['provisioner']['type']})"
         )
 
-        now_with_tz = datetime.utcnow().replace(
-            tzinfo=timezone(offset=timedelta()), microsecond=0
-        )
+        now_with_tz = datetime.now(timezone.utc).replace(microsecond=0)
 
-        if cert.revoked_at is not None:
-            delta = now_with_tz - cert.revoked_at
+        if cert["revoked_at"] is not None:
+            delta = now_with_tz - datetime.fromtimestamp(
+                cert["revoked_at"], tz=timezone.utc
+            )
         else:
-            delta = now_with_tz - cert.not_after
+            delta = now_with_tz - datetime.fromtimestamp(
+                cert["not_after"], tz=timezone.utc
+            )
 
         cert_row["Expires"] = delta_text(delta).capitalize()
-        cert_row["Status"] = cert.status
+        cert_row["Status"] = cert["status"]
 
         cert_tbl.append(cert_row)
 
@@ -149,64 +182,87 @@ def list_x509_certs(sort_key, revoked=False, expired=False):
 
 
 def get_x509_cert(serial, show_cert=False, show_pubkey=False):
-    cert = x509_cert.cert.from_serial(serial)
-    cert_tbl = []
+    cert = fetch_api(f"x509/certs/{serial}")
 
-    cert_tbl.append(["Serial", cert.serial])
-    cert_tbl.append(["Subject", cert.subject])
+    if cert is None:
+        return
+
+    cert_tbl = []
+    cert_tbl.append(["Serial", cert["serial"]])
+    cert_tbl.append(["Subject", cert["subject"]])
     cert_tbl.append(
         [
             "Subject Alt Names (SAN)",
-            "\n".join([f"{x['type']}: {x['value']}" for x in cert.san_names]),
+            "\n".join([f"{x['type']}: {x['value']}" for x in cert["san_names"]]),
         ]
     )
-    cert_tbl.append(["Issuer", cert.issuer])
+    cert_tbl.append(["Issuer", cert["issuer"]])
 
-    now_with_tz = datetime.utcnow().replace(
-        tzinfo=timezone(offset=timedelta()), microsecond=0
+    now_with_tz = datetime.now(timezone.utc).replace(microsecond=0)
+
+    delta_after = now_with_tz - datetime.fromtimestamp(
+        cert["not_after"], tz=timezone.utc
     )
-
-    delta_after = now_with_tz - cert.not_after
-    delta_before = now_with_tz - cert.not_before
+    delta_before = now_with_tz - datetime.fromtimestamp(
+        cert["not_before"], tz=timezone.utc
+    )
 
     cert_tbl.append(
-        ["Not valid before", f"{cert.not_before} ({delta_text(delta_before)})"]
+        [
+            "Not valid before",
+            f"{datetime.fromtimestamp(cert['not_before']).astimezone()} ({delta_text(delta_before)})",
+        ]
     )
     cert_tbl.append(
-        ["Not valid after", f"{cert.not_after} ({delta_text(delta_after)})"]
+        [
+            "Not valid after",
+            f"{datetime.fromtimestamp(cert['not_after']).astimezone()} ({delta_text(delta_after)})",
+        ]
     )
-    if cert.revoked_at is not None:
-        delta_revoked = now_with_tz - cert.revoked_at
+    if cert["revoked_at"] is not None:
+        delta_revoked = now_with_tz - datetime.fromtimestamp(
+            cert["revoked_at"], tz=timezone.utc
+        )
         cert_tbl.append(
-            ["Revoked at", f"{cert.revoked_at} ({delta_text(delta_revoked)})"]
+            [
+                "Revoked at",
+                f"{datetime.fromtimestamp(cert['revoked_at']).astimezone()} ({delta_text(delta_revoked)})",
+            ]
         )
         cert_tbl.append(["Valid for", f"{delta_revoked.days} days"])
     else:
         cert_tbl.append(["Valid for", f"{abs(delta_after.days)} days"])
 
     cert_tbl.append(
-        ["Provisioner", f"{cert.provisioner['name']} ({cert.provisioner['type']})"]
+        [
+            "Provisioner",
+            f"{cert['provisioner']['name']} ({cert['provisioner']['type']})",
+        ]
     )
     fingerprints = []
-    fingerprints.append(f"MD5:     {cert.md5.decode()}")
-    fingerprints.append(f"SHA-1:   {cert.sha1.decode()}")
-    fingerprints.append(f"SHA-256: {cert.sha256.decode()}")
+    fingerprints.append(f"MD5:     {cert['md5']}")
+    fingerprints.append(f"SHA-1:   {cert['sha1']}")
+    fingerprints.append(f"SHA-256: {cert['sha256']}")
     cert_tbl.append(["Fingerprints", "\n".join(fingerprints)])
-    cert_tbl.append(["Public key algorithm", cert.pub_alg])
-    cert_tbl.append(["Signature algorithm", cert.sig_alg])
-    cert_tbl.append(["Status", cert.status])
-    # cert_tbl.append(["Extensions", cert.extensions])
+    cert_tbl.append(["Public key algorithm", cert["pub_alg"]])
+    cert_tbl.append(["Signature algorithm", cert["sig_alg"]])
+    cert_tbl.append(["Status", cert["status"]])
+
     if show_pubkey:
-        cert_tbl.append(["Public key", cert.pub_key.decode("utf-8")])
+        cert_tbl.append(["Public key", cert["pub_key"]])
     if show_cert:
-        cert_tbl.append(["PEM", cert.pem.decode("utf-8")])
+        cert_tbl.append(["PEM", cert["pem"]])
 
     print(tabulate(cert_tbl, tablefmt="fancy_grid"))
 
 
 def dump_x509_cert(serial, cert_format="pem"):
-    cert = x509_cert.cert.from_serial(serial)
-    print(cert.pem.decode("utf-8").rstrip())
+    cert = fetch_api(f"x509/certs/{serial}")
+
+    if cert is None:
+        return
+
+    print(cert["pem"].rstrip())
 
 
 parser = argparse.ArgumentParser(description="Step CA Inspector")

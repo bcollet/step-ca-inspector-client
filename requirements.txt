@@ -1,5 +1,2 @@
-PyYAML
-cryptography
-mariadb
 python-dateutil
 tabulate
