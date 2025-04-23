@@ -5,7 +5,7 @@ import requests
 from urllib.parse import urljoin
 from datetime import datetime, timedelta, timezone
 from tabulate import tabulate
-from config import config
+from step_ca_inspector_client.config import config
 
 config()
 
@@ -126,7 +126,7 @@ def get_ssh_cert(serial):
         )
 
     cert_tbl.append(["Extensions", "\n".join(cert["extensions"])])
-    #cert_tbl.append(["Signing key", cert["signing_key"]])
+    # cert_tbl.append(["Signing key", cert["signing_key"]])
     cert_tbl.append(["Status", cert["status"]])
 
     print(tabulate(cert_tbl, tablefmt="fancy_grid"))
@@ -265,125 +265,138 @@ def dump_x509_cert(serial, cert_format="pem"):
     print(cert["pem"].rstrip())
 
 
-parser = argparse.ArgumentParser(description="Step CA Inspector")
-subparsers = parser.add_subparsers(
-    help="Object to inspect", dest="object", required=True
-)
-x509_parser = subparsers.add_parser("x509", help="x509 certificates")
-x509_subparsers = x509_parser.add_subparsers(
-    help="Action for perform", dest="action", required=True
-)
-x509_list_parser = x509_subparsers.add_parser("list", help="List x509 certificates")
-x509_list_parser.add_argument(
-    "--show-expired",
-    "-e",
-    action="store_true",
-    default=False,
-    help="Show expired certificates",
-)
-x509_list_parser.add_argument(
-    "--show-revoked",
-    "-r",
-    action="store_true",
-    default=False,
-    help="Show revoked certificates",
-)
-x509_list_parser.add_argument(
-    "--sort-by",
-    "-s",
-    type=str,
-    choices=["not_after", "not_before"],
-    default="not_after",
-    help="Sort certificates",
-)
-x509_details_parser = x509_subparsers.add_parser(
-    "details", help="Show an x509 certificate details"
-)
-x509_details_parser.add_argument(
-    "--serial", "-s", type=str, required=True, help="Certificate serial"
-)
-x509_details_parser.add_argument(
-    "--show-cert",
-    "-c",
-    action="store_true",
-    default=False,
-    help="Show certificate (PEM)",
-)
-x509_details_parser.add_argument(
-    "--show-pubkey",
-    "-p",
-    action="store_true",
-    default=False,
-    help="Show public key (PEM)",
-)
-x509_dump_parser = x509_subparsers.add_parser("dump", help="Dump an x509 certificate")
-x509_dump_parser.add_argument(
-    "--serial", "-s", type=str, required=True, help="Certificate serial"
-)
-x509_dump_parser.add_argument(
-    "--format",
-    "-f",
-    type=str,
-    choices=["pem"],
-    required=False,
-    help="Certificate format",
-)
-ssh_parser = subparsers.add_parser("ssh", help="ssh certificates")
-ssh_subparsers = ssh_parser.add_subparsers(
-    help="Action for perform", dest="action", required=True
-)
-ssh_list_parser = ssh_subparsers.add_parser("list", help="List ssh certificates")
-ssh_list_parser.add_argument(
-    "--show-expired",
-    "-e",
-    action="store_true",
-    default=False,
-    help="Show expired certificates",
-)
-ssh_list_parser.add_argument(
-    "--show-revoked",
-    "-r",
-    action="store_true",
-    default=False,
-    help="Show revoked certificates",
-)
-ssh_list_parser.add_argument(
-    "--sort-by",
-    "-s",
-    type=str,
-    choices=["not_after", "not_before"],
-    default="not_after",
-    help="Sort certificates (default: not_after)",
-)
-ssh_details_parser = ssh_subparsers.add_parser(
-    "details", help="Show an ssh certificate details"
-)
-ssh_details_parser.add_argument(
-    "--serial", "-s", type=str, required=True, help="Certificate serial"
-)
-ssh_dump_parser = ssh_subparsers.add_parser("dump", help="Dump an ssh certificate")
-ssh_dump_parser.add_argument(
-    "--serial", "-s", type=str, required=True, help="Certificate serial"
-)
-args = parser.parse_args()
+def main():
+    parser = argparse.ArgumentParser(description="Step CA Inspector")
+    subparsers = parser.add_subparsers(
+        help="Object to inspect", dest="object", required=True
+    )
+    x509_parser = subparsers.add_parser("x509", help="x509 certificates")
+    x509_subparsers = x509_parser.add_subparsers(
+        help="Action for perform", dest="action", required=True
+    )
+    x509_list_parser = x509_subparsers.add_parser("list", help="List x509 certificates")
+    x509_list_parser.add_argument(
+        "--show-expired",
+        "-e",
+        action="store_true",
+        default=False,
+        help="Show expired certificates",
+    )
+    x509_list_parser.add_argument(
+        "--show-revoked",
+        "-r",
+        action="store_true",
+        default=False,
+        help="Show revoked certificates",
+    )
+    x509_list_parser.add_argument(
+        "--sort-by",
+        "-s",
+        type=str,
+        choices=["not_after", "not_before"],
+        default="not_after",
+        help="Sort certificates",
+    )
+    x509_details_parser = x509_subparsers.add_parser(
+        "details", help="Show an x509 certificate details"
+    )
+    x509_details_parser.add_argument(
+        "--serial", "-s", type=str, required=True, help="Certificate serial"
+    )
+    x509_details_parser.add_argument(
+        "--show-cert",
+        "-c",
+        action="store_true",
+        default=False,
+        help="Show certificate (PEM)",
+    )
+    x509_details_parser.add_argument(
+        "--show-pubkey",
+        "-p",
+        action="store_true",
+        default=False,
+        help="Show public key (PEM)",
+    )
+    x509_dump_parser = x509_subparsers.add_parser(
+        "dump", help="Dump an x509 certificate"
+    )
+    x509_dump_parser.add_argument(
+        "--serial", "-s", type=str, required=True, help="Certificate serial"
+    )
+    x509_dump_parser.add_argument(
+        "--format",
+        "-f",
+        type=str,
+        choices=["pem"],
+        required=False,
+        help="Certificate format",
+    )
+    ssh_parser = subparsers.add_parser("ssh", help="ssh certificates")
+    ssh_subparsers = ssh_parser.add_subparsers(
+        help="Action for perform", dest="action", required=True
+    )
+    ssh_list_parser = ssh_subparsers.add_parser("list", help="List ssh certificates")
+    ssh_list_parser.add_argument(
+        "--show-expired",
+        "-e",
+        action="store_true",
+        default=False,
+        help="Show expired certificates",
+    )
+    ssh_list_parser.add_argument(
+        "--show-revoked",
+        "-r",
+        action="store_true",
+        default=False,
+        help="Show revoked certificates",
+    )
+    ssh_list_parser.add_argument(
+        "--sort-by",
+        "-s",
+        type=str,
+        choices=["not_after", "not_before"],
+        default="not_after",
+        help="Sort certificates (default: not_after)",
+    )
+    ssh_details_parser = ssh_subparsers.add_parser(
+        "details", help="Show an ssh certificate details"
+    )
+    ssh_details_parser.add_argument(
+        "--serial", "-s", type=str, required=True, help="Certificate serial"
+    )
+    ssh_dump_parser = ssh_subparsers.add_parser("dump", help="Dump an ssh certificate")
+    ssh_dump_parser.add_argument(
+        "--serial", "-s", type=str, required=True, help="Certificate serial"
+    )
+    args = parser.parse_args()
 
-if args.object == "x509":
-    if args.action == "list":
-        list_x509_certs(
-            revoked=args.show_revoked, expired=args.show_expired, sort_key=args.sort_by
-        )
-    elif args.action == "details":
-        get_x509_cert(
-            serial=args.serial, show_cert=args.show_cert, show_pubkey=args.show_pubkey
-        )
-    elif args.action == "dump":
-        dump_x509_cert(serial=args.serial)
-elif args.object == "ssh":
-    if args.action == "list":
-        list_ssh_certs(
-            revoked=args.show_revoked, expired=args.show_expired, sort_key=args.sort_by
-        )
-    elif args.action == "details":
-        get_ssh_cert(serial=args.serial)
-    elif args.action == "dump":
-        dump_ssh_cert(serial=args.serial)
+    if args.object == "x509":
+        if args.action == "list":
+            list_x509_certs(
+                revoked=args.show_revoked,
+                expired=args.show_expired,
+                sort_key=args.sort_by,
+            )
+        elif args.action == "details":
+            get_x509_cert(
+                serial=args.serial,
+                show_cert=args.show_cert,
+                show_pubkey=args.show_pubkey,
+            )
+        elif args.action == "dump":
+            dump_x509_cert(serial=args.serial)
+    elif args.object == "ssh":
+        if args.action == "list":
+            list_ssh_certs(
+                revoked=args.show_revoked,
+                expired=args.show_expired,
+                sort_key=args.sort_by,
+            )
+        elif args.action == "details":
+            get_ssh_cert(serial=args.serial)
+        elif args.action == "dump":
+            dump_ssh_cert(serial=args.serial)
+
+
+if __name__ == "__main__":
+    main()
