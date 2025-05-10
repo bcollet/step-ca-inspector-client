@@ -9,6 +9,8 @@ from step_ca_inspector_client.config import config
 
 config()
 
+SSH_CERT_TYPES = ["Host", "User"]
+
 
 def delta_text(delta):
     s = "s"[: abs(delta.days) ^ 1]
@@ -36,11 +38,21 @@ def fetch_api(endpoint, params={}):
     return results.json()
 
 
-def list_ssh_certs(sort_key, revoked=False, expired=False):
+def list_ssh_certs(
+    sort_key,
+    revoked=False,
+    expired=False,
+    cert_type=SSH_CERT_TYPES,
+    key=None,
+    principal=None,
+):
     params = {
         "sort_key": sort_key,
         "revoked": revoked,
         "expired": expired,
+        "cert_type": cert_type,
+        "key": key,
+        "principal": principal,
     }
     cert_list = fetch_api("ssh/certs", params=params)
 
@@ -358,6 +370,29 @@ def main():
         default="not_after",
         help="Sort certificates (default: not_after)",
     )
+    ssh_list_parser.add_argument(
+        "--type",
+        "-t",
+        type=str,
+        choices=SSH_CERT_TYPES,
+        default=SSH_CERT_TYPES,
+        nargs="+",
+        help="Filter by SSH certificate type",
+    )
+    ssh_list_parser.add_argument(
+        "--key",
+        "-k",
+        type=str,
+        default=None,
+        help="Search for key ID",
+    )
+    ssh_list_parser.add_argument(
+        "--principal",
+        "-p",
+        type=str,
+        default=None,
+        help="Search for principal",
+    )
     ssh_details_parser = ssh_subparsers.add_parser(
         "details", help="Show an ssh certificate details"
     )
@@ -391,6 +426,9 @@ def main():
                 revoked=args.show_revoked,
                 expired=args.show_expired,
                 sort_key=args.sort_by,
+                cert_type=args.type,
+                key=args.key,
+                principal=args.principal,
             )
         elif args.action == "details":
             get_ssh_cert(serial=args.serial)
