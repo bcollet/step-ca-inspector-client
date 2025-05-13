@@ -9,6 +9,19 @@ from step_ca_inspector_client.config import config
 
 config()
 
+CERT_STATUS = ["Valid", "Expired", "Revoked"]
+PROVISIONER_TYPES = [
+    "ACME",
+    "AWS",
+    "GCP",
+    "JWK",
+    "Nebula",
+    "OIDC",
+    "SCEP",
+    "SSHPOP",
+    "X5C",
+    "K8sSA",
+]
 SSH_CERT_TYPES = ["Host", "User"]
 
 
@@ -40,16 +53,14 @@ def fetch_api(endpoint, params={}):
 
 def list_ssh_certs(
     sort_key,
-    revoked=False,
-    expired=False,
+    cert_status=["Valid"],
     cert_type=SSH_CERT_TYPES,
     key=None,
     principal=None,
 ):
     params = {
         "sort_key": sort_key,
-        "revoked": revoked,
-        "expired": expired,
+        "cert_status": cert_status,
         "cert_type": cert_type,
         "key": key,
         "principal": principal,
@@ -152,11 +163,21 @@ def dump_ssh_cert(serial):
     print(cert["public_identity"])
 
 
-def list_x509_certs(sort_key, revoked=False, expired=False):
+def list_x509_certs(
+    sort_key,
+    cert_status=["Valid"],
+    provisioner_type=None,
+    provisioner_name=None,
+    subject=None,
+    san=None,
+):
     params = {
         "sort_key": sort_key,
-        "revoked": revoked,
-        "expired": expired,
+        "cert_status": cert_status,
+        "provisioner_type": provisioner_type,
+        "provisioner": provisioner_name,
+        "subject": subject,
+        "san": san,
     }
     cert_list = fetch_api(f"x509/certs", params=params)
     cert_tbl = []
@@ -288,18 +309,12 @@ def main():
     )
     x509_list_parser = x509_subparsers.add_parser("list", help="List x509 certificates")
     x509_list_parser.add_argument(
-        "--show-expired",
-        "-e",
-        action="store_true",
-        default=False,
-        help="Show expired certificates",
-    )
-    x509_list_parser.add_argument(
-        "--show-revoked",
-        "-r",
-        action="store_true",
-        default=False,
-        help="Show revoked certificates",
+        "--status",
+        type=str,
+        choices=CERT_STATUS,
+        default=["Valid"],
+        nargs="+",
+        help="Filter by x509 certificate status (default: Valid)",
     )
     x509_list_parser.add_argument(
         "--sort-by",
@@ -308,6 +323,34 @@ def main():
         choices=["not_after", "not_before"],
         default="not_after",
         help="Sort certificates",
+    )
+    x509_list_parser.add_argument(
+        "--provisioner-type",
+        "-t",
+        type=str,
+        choices=PROVISIONER_TYPES,
+        default=None,
+        nargs="+",
+        help="Filter by provisioner type",
+    )
+    x509_list_parser.add_argument(
+        "--provisioner-name",
+        "-p",
+        type=str,
+        default=None,
+        help="Filter by provisioner name",
+    )
+    x509_list_parser.add_argument(
+        "--subject",
+        type=str,
+        default=None,
+        help="Search for subject",
+    )
+    x509_list_parser.add_argument(
+        "--san",
+        type=str,
+        default=None,
+        help="Search for Subject Alt Name",
     )
     x509_details_parser = x509_subparsers.add_parser(
         "details", help="Show an x509 certificate details"
@@ -349,18 +392,12 @@ def main():
     )
     ssh_list_parser = ssh_subparsers.add_parser("list", help="List ssh certificates")
     ssh_list_parser.add_argument(
-        "--show-expired",
-        "-e",
-        action="store_true",
-        default=False,
-        help="Show expired certificates",
-    )
-    ssh_list_parser.add_argument(
-        "--show-revoked",
-        "-r",
-        action="store_true",
-        default=False,
-        help="Show revoked certificates",
+        "--status",
+        type=str,
+        choices=CERT_STATUS,
+        default=["Valid"],
+        nargs="+",
+        help="Filter by SSH certificate status (default: Valid)",
     )
     ssh_list_parser.add_argument(
         "--sort-by",
@@ -380,7 +417,7 @@ def main():
         help="Filter by SSH certificate type",
     )
     ssh_list_parser.add_argument(
-        "--key",
+        "--key-id",
         "-k",
         type=str,
         default=None,
@@ -408,9 +445,12 @@ def main():
     if args.object == "x509":
         if args.action == "list":
             list_x509_certs(
-                revoked=args.show_revoked,
-                expired=args.show_expired,
+                cert_status=args.status,
                 sort_key=args.sort_by,
+                provisioner_type=args.provisioner_type,
+                provisioner_name=args.provisioner_name,
+                subject=args.subject,
+                san=args.san,
             )
         elif args.action == "details":
             get_x509_cert(
@@ -423,11 +463,10 @@ def main():
     elif args.object == "ssh":
         if args.action == "list":
             list_ssh_certs(
-                revoked=args.show_revoked,
-                expired=args.show_expired,
+                cert_status=args.status,
                 sort_key=args.sort_by,
                 cert_type=args.type,
-                key=args.key,
+                key=args.key_id,
                 principal=args.principal,
             )
         elif args.action == "details":

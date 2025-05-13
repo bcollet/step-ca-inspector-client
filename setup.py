@@ -10,7 +10,7 @@ setup(
     #long_description_content_type="text/markdown",
     install_requires=["requests>=2.20.0,<3.0", "PyYAML", "tabulate"],
     keywords=["step-ca-inspector"],
-    version="0.0.2",
+    version="0.0.3",
     classifiers=[
         "Intended Audience :: Developers",
         "Development Status :: 3 - Alpha",
