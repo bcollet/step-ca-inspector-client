@@ -25,6 +25,15 @@ PROVISIONER_TYPES = [
 SSH_CERT_TYPES = ["Host", "User"]
 
 
+def case_insensitive_choice(choices):
+    def find_choice(choice):
+        for key, item in enumerate([choice.lower() for choice in choices]):
+            if choice.lower() == item:
+                return choices[key]
+        else:
+            return choice
+    return find_choice
+
 def delta_text(delta):
     s = "s"[: abs(delta.days) ^ 1]
 
@@ -310,7 +319,7 @@ def main():
     x509_list_parser = x509_subparsers.add_parser("list", help="List x509 certificates")
     x509_list_parser.add_argument(
         "--status",
-        type=str,
+        type=case_insensitive_choice(CERT_STATUS),
         choices=CERT_STATUS,
         default=["Valid"],
         nargs="+",
@@ -327,7 +336,7 @@ def main():
     x509_list_parser.add_argument(
         "--provisioner-type",
         "-t",
-        type=str,
+        type=case_insensitive_choice(PROVISIONER_TYPES),
         choices=PROVISIONER_TYPES,
         default=None,
         nargs="+",
@@ -393,7 +402,7 @@ def main():
     ssh_list_parser = ssh_subparsers.add_parser("list", help="List ssh certificates")
     ssh_list_parser.add_argument(
         "--status",
-        type=str,
+        type=case_insensitive_choice(CERT_STATUS),
         choices=CERT_STATUS,
         default=["Valid"],
         nargs="+",
@@ -410,7 +419,7 @@ def main():
     ssh_list_parser.add_argument(
         "--type",
         "-t",
-        type=str,
+        type=case_insensitive_choice(SSH_CERT_TYPES),
         choices=SSH_CERT_TYPES,
         default=SSH_CERT_TYPES,
         nargs="+",
