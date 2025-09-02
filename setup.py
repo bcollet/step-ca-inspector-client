@@ -19,6 +19,7 @@ setup(
     entry_points={
         "console_scripts": [
             "step-ca-inspector = step_ca_inspector_client.cli:main",
+            "step-inspector-plugin = step_ca_inspector_client.cli:main",
         ],
     },
 )
