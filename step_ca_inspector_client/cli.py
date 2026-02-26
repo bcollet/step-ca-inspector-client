@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 
 import argparse
-import requests
-from urllib.parse import urljoin
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urljoin
+
+import requests
 from tabulate import tabulate
+
 from step_ca_inspector_client.config import config
 
 config()
@@ -32,7 +34,9 @@ def case_insensitive_choice(choices):
                 return choices[key]
         else:
             return choice
+
     return find_choice
+
 
 def delta_text(delta):
     s = "s"[: abs(delta.days) ^ 1]
@@ -47,7 +51,9 @@ def delta_text(delta):
         return f"{delta.days} day{s} ago"
 
 
-def fetch_api(endpoint, params={}):
+def fetch_api(endpoint, params=None):
+    if params is None:
+        params = {}
     try:
         results = requests.get(urljoin(config.url, endpoint), params=params)
         results.raise_for_status()
@@ -62,11 +68,13 @@ def fetch_api(endpoint, params={}):
 
 def list_ssh_certs(
     sort_key,
-    cert_status=["Valid"],
+    cert_status=None,
     cert_type=SSH_CERT_TYPES,
     key=None,
     principal=None,
 ):
+    if cert_status is None:
+        cert_status = ["Valid"]
     params = {
         "sort_key": sort_key,
         "cert_status": cert_status,
@@ -174,12 +182,14 @@ def dump_ssh_cert(serial):
 
 def list_x509_certs(
     sort_key,
-    cert_status=["Valid"],
+    cert_status=None,
     provisioner_type=None,
     provisioner_name=None,
     subject=None,
     san=None,
 ):
+    if cert_status is None:
+        cert_status = ["Valid"]
     params = {
         "sort_key": sort_key,
         "cert_status": cert_status,
@@ -188,14 +198,14 @@ def list_x509_certs(
         "subject": subject,
         "san": san,
     }
-    cert_list = fetch_api(f"x509/certs", params=params)
+    cert_list = fetch_api("x509/certs", params=params)
     cert_tbl = []
     for cert in cert_list:
         cert_row = {}
         cert_row["Serial"] = cert["serial"]
         cert_row["Subject/Subject Alt Names (SAN)"] = "\n".join(
             [
-                "%.33s" % x
+                f"{x:.33}"
                 for x in [cert["subject"]]
                 + [f"{x['type']}: {x['value']}" for x in cert["san_names"]]
             ]

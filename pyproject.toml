@@ -1,0 +1,29 @@
+[project]
+name = "step-ca-inspector-client"
+version = "0.0.5"
+description = "Step CA Inspector Client"
+#readme = "README.md"
+dependencies = ["requests>=2.20.0,<3.0", "PyYAML", "tabulate"]
+authors = [
+  {name = "Benjamin Collet", email = "benjamin@collet.eu"},
+]
+
+[project.scripts]
+step-ca-inspector = "step_ca_inspector_client.cli:main"
+step-inspector-plugin = "step_ca_inspector_client.cli:main"
+
+[tool.ruff]
+# Line length (same as Black)
+line-length = 88
+
+[tool.ruff.lint]
+# Enable rules:
+# E: pycodestyle errors
+# F: Pyflakes
+# I: isort (sort imports)
+# B: flake8-bugbear (common bugs)
+# UP: pyupgrade (modernize syntax)
+select = ["E", "F", "I", "B", "UP"]
+
+# Ignore specific rules if necessary
+ignore = ["E501"]
