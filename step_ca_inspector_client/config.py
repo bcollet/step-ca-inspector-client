@@ -1,6 +1,8 @@
 import os
 import sys
+
 import yaml
+
 
 class config:
     @classmethod
@@ -15,7 +17,7 @@ class config:
                 with open(os.path.join(config_path, "config.yaml")) as ymlfile:
                     cfg = yaml.load(ymlfile, Loader=yaml.FullLoader)
                     break
-            except IOError:
+            except OSError:
                 pass
         else:
             print("No configuration file found")
